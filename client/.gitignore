@@ -1,0 +1,14 @@
+node_modules/
+
+dist/
+
+.vite/
+
+.env
+
+coverage/
+
+.vscode/
+
+.DS_Store
+Thumbs.db
