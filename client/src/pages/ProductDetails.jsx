@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
-
+import { addToWishlist } from "../services/wishlistApi";
 function ProductDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -11,7 +12,29 @@ function ProductDetails() {
 
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
+  const handleWishlist = async () => {
+  try {
+    const token = localStorage.getItem("token");
 
+    if (!token) {
+      alert("Please login to add products to your wishlist.");
+      navigate("/login");
+      return;
+    }
+
+    const data = await addToWishlist(product._id);
+
+    if (!data.success) {
+      alert(data.message);
+      return;
+    }
+
+    alert("Product added to wishlist ❤️");
+  } catch (error) {
+    console.error("Wishlist error:", error);
+    alert("Unable to add product to wishlist.");
+  }
+};
   useEffect(() => {
     const fetchProduct = async () => {
       try {
@@ -289,6 +312,7 @@ function ProductDetails() {
               </button>
 
               <button
+              onClick={handleWishlist}
                 className="border border-black px-6 py-4 text-xl transition hover:bg-black hover:text-white"
                 title="Add to Wishlist"
               >
