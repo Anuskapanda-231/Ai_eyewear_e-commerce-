@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
 import { addToWishlist } from "../services/wishlistApi";
+import { addToCart } from "../services/cartApi";
 function ProductDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -33,6 +34,31 @@ function ProductDetails() {
   } catch (error) {
     console.error("Wishlist error:", error);
     alert("Unable to add product to wishlist.");
+  }
+};
+
+const handleAddToCart = async () => {
+  try {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      alert("Please login to add products to your cart.");
+      navigate("/login");
+      return;
+    }
+
+    const data = await addToCart(product._id, quantity);
+
+    if (!data.success) {
+      alert(data.message);
+      return;
+    }
+
+    alert("Product added to cart 🛒");
+
+  } catch (error) {
+    console.error("Cart error:", error);
+    alert("Unable to add product to cart.");
   }
 };
   useEffect(() => {
@@ -305,6 +331,7 @@ function ProductDetails() {
             <div className="mt-8 flex gap-4">
 
               <button
+               onClick={handleAddToCart}
                 disabled={product.stock === 0}
                 className="flex-1 bg-black px-6 py-4 text-sm font-medium uppercase tracking-wider text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-gray-400"
               >
