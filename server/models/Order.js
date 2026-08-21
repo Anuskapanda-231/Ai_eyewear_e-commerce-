@@ -1,5 +1,35 @@
 const mongoose = require("mongoose");
 
+const trackingSchema = new mongoose.Schema(
+  {
+    status: {
+      type: String,
+      enum: [
+        "Placed",
+        "Confirmed",
+        "Processing",
+         "Packed",
+        "Shipped",
+        "Out for Delivery",
+        "Delivered",
+        "Cancelled",
+      ],
+      required: true,
+    },
+
+    message: {
+      type: String,
+      default: "",
+    },
+
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
   {
     user: {
@@ -40,71 +70,72 @@ const orderSchema = new mongoose.Schema(
     ],
 
     shippingAddress: {
-      name: {
-        type: String,
-        required: true,
-      },
-
-      phone: {
-        type: String,
-        required: true,
-      },
-
-      address: {
-        type: String,
-        required: true,
-      },
-
-      city: {
-        type: String,
-        required: true,
-      },
-
-      state: {
-        type: String,
-        required: true,
-      },
-
-      pincode: {
-        type: String,
-        required: true,
-      },
+      name: String,
+      phone: String,
+      address: String,
+      city: String,
+      state: String,
+      pincode: String,
     },
 
     totalAmount: {
       type: Number,
       required: true,
     },
-    razorpayOrderId: {
-  type: String,
-  default: "",
-},
 
-razorpayPaymentId: {
-  type: String,
-  default: "",
-},
+    paymentMethod: {
+      type: String,
+      enum: ["Razorpay", "COD"],
+      default: "Razorpay",
+    },
 
-razorpaySignature: {
-  type: String,
-  default: "",
-},
     paymentStatus: {
       type: String,
       enum: ["Pending", "Paid", "Failed"],
       default: "Pending",
     },
 
-    orderStatus: {
+   orderStatus: {
+  type: String,
+  enum: [
+    "Confirmed",
+    "Processing",
+    "Packed",
+    "Shipped",
+    "Out for Delivery",
+    "Delivered",
+    "Cancelled",
+  ],
+  default: "Processing",
+},
+    
+
+    // Order tracking history
+    trackingTimeline: {
+      type: [trackingSchema],
+      default: [],
+    },
+
+    // Expected delivery date
+    estimatedDeliveryDate: {
+      type: Date,
+      default: null,
+    },
+
+    // Razorpay information
+    razorpayOrderId: {
       type: String,
-      enum: [
-        "Processing",
-        "Confirmed",
-        "Shipped",
-        "Delivered",
-        "Cancelled",
-      ],
-      default: "Processing",
+      default: "",
+    },
+
+    razorpayPaymentId: {
+      type: String,
+      default: "",
+    },
+
+    razorpaySignature: {
+      type: String,
+      default: "",
     },
   },
   {

@@ -4,26 +4,25 @@ const getToken = () => {
   return localStorage.getItem("token");
 };
 
-export const createOrder = async (shippingAddress) => {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getToken()}`,
-    },
-    body: JSON.stringify({
-      shippingAddress,
-    }),
-  });
+export const createOrder = async (orderData) => {
+  const token = localStorage.getItem("token");
 
-  const data = await response.json();
+  const response = await fetch(
+    "http://localhost:5000/api/orders",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(orderData),
+    }
+  );
 
-  if (!response.ok) {
-    throw new Error(data.message || "Failed to create order");
-  }
-
-  return data;
+  return await response.json();
 };
+
+  
 
 export const getMyOrders = async () => {
   const response = await fetch(`${API_URL}/my-orders`, {

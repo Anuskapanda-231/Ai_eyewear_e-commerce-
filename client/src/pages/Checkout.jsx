@@ -5,6 +5,12 @@ import { createOrder } from "../services/orderApi";
 
 const loadRazorpay = () => {
   return new Promise((resolve) => {
+    // If Razorpay is already loaded
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+
     const script = document.createElement("script");
 
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -20,9 +26,13 @@ const loadRazorpay = () => {
     document.body.appendChild(script);
   });
 };
+
 function Checkout() {
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const [paymentMethod, setPaymentMethod] =
+    useState("Razorpay");
 
   const [form, setForm] = useState({
     name: "",
@@ -34,6 +44,10 @@ function Checkout() {
   });
 
   const navigate = useNavigate();
+
+  // ==============================
+  // Fetch Cart
+  // ==============================
 
   useEffect(() => {
     const fetchCart = async () => {
@@ -60,6 +74,10 @@ function Checkout() {
     fetchCart();
   }, [navigate]);
 
+  // ==============================
+  // Form Change
+  // ==============================
+
   const handleChange = (e) => {
     setForm({
       ...form,
@@ -67,102 +85,205 @@ function Checkout() {
     });
   };
 
+  // ==============================
+  // Total
+  // ==============================
+
   const total = cart.reduce((sum, item) => {
     return sum + item.product.price * item.quantity;
   }, 0);
 
-const handlePlaceOrder = async (e) => {
+  // ==============================
+  // Place Order
+  // ==============================
+
+  
+     const handlePlaceOrder = async (e) => {
   e.preventDefault();
 
+  if (
+    !form.name.trim() ||
+    !form.phone.trim() ||
+    !form.address.trim() ||
+    !form.city.trim() ||
+    !form.state.trim() ||
+    !form.pincode.trim()
+  ) {
+    alert("Please provide complete shipping information");
+    return;
+  }
+
   try {
-    const loaded = await loadRazorpay();
-
-    if (!loaded) {
-      alert("Razorpay failed to load. Please check your internet connection.");
-      return;
-    }
-
-    // Create order in our backend
-    const data = await createOrder(form);
+    const data = await createOrder({
+      shippingAddress: {
+        name: form.name,
+        phone: form.phone,
+        address: form.address,
+        city: form.city,
+        state: form.state,
+        pincode: form.pincode,
+      },
+      paymentMethod,
+    });
 
     if (!data.success) {
-      alert(data.message);
+      alert(data.message || "Failed to create order");
       return;
     }
 
-    const options = {
-      key: data.razorpayKeyId,
+    // COD
+    if (paymentMethod === "COD") {
+      alert("Order placed successfully! 🎉");
+      navigate("/orders");
+      return;
+    }
 
-      amount: data.razorpayOrder.amount,
+  
 
-      currency: data.razorpayOrder.currency,
+      // ==========================================
+      // RAZORPAY
+      // ==========================================
 
-      name: "AI Eyewear",
+      const loaded = await loadRazorpay();
 
-      description: "Eyewear Purchase",
+      if (!loaded) {
+        alert(
+          "Razorpay failed to load. Please check your internet connection."
+        );
+        return;
+      }
 
-      order_id: data.razorpayOrder.id,
+      const options = {
+        key: data.razorpayKeyId,
 
-      handler: async function (response) {
-        try {
-          const paymentResponse = await fetch(
-            "http://localhost:5000/api/orders/verify-payment",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
-              },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                orderId: data.order._id,
-              }),
+        amount: data.razorpayOrder.amount,
+
+        currency: data.razorpayOrder.currency,
+
+        name: "AI Eyewear",
+
+        description: "Eyewear Purchase",
+
+        order_id: data.razorpayOrder.id,
+
+        // ========================================
+        // Razorpay Successful Payment
+        // ========================================
+
+        handler: async function (response) {
+          try {
+            const paymentResponse = await fetch(
+              "http://localhost:5000/api/orders/verify-payment",
+              {
+                method: "POST",
+
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${localStorage.getItem(
+                    "token"
+                  )}`,
+                },
+
+                body: JSON.stringify({
+                  razorpay_order_id:
+                    response.razorpay_order_id,
+
+                  razorpay_payment_id:
+                    response.razorpay_payment_id,
+
+                  razorpay_signature:
+                    response.razorpay_signature,
+
+                  orderId: data.order._id,
+                }),
+              }
+            );
+
+            const verificationData =
+              await paymentResponse.json();
+
+            console.log(
+              "Payment verification response:",
+              verificationData
+            );
+
+            if (!paymentResponse.ok) {
+              alert(
+                verificationData.message ||
+                  "Payment verification failed"
+              );
+
+              return;
             }
+
+            // Payment successfully verified
+            alert("Payment successful! 🎉");
+
+            navigate("/orders");
+
+          } catch (error) {
+            console.error(
+              "Payment verification error:",
+              error
+            );
+
+            alert("Payment verification failed.");
+          }
+        },
+
+        // ========================================
+        // Prefill Customer Information
+        // ========================================
+
+        prefill: {
+          name: form.name,
+          contact: form.phone,
+        },
+
+        // ========================================
+        // Theme
+        // ========================================
+
+        theme: {
+          color: "#000000",
+        },
+      };
+
+      const paymentObject =
+        new window.Razorpay(options);
+
+      // Razorpay payment failure
+      paymentObject.on(
+        "payment.failed",
+        function (response) {
+          console.error(
+            "Razorpay payment failed:",
+            response.error
           );
 
-          const verificationData = await paymentResponse.json();
-
-console.log("Payment verification response:", verificationData);
-
-if (!paymentResponse.ok) {
-  alert(
-    verificationData.message ||
-    "Payment verification failed"
-  );
-  return;
-}
-
-          alert("Payment successful! 🎉");
-
-          navigate("/orders");
-
-        } catch (error) {
-          console.error("Payment verification error:", error);
-          alert("Payment verification failed.");
+          alert(
+            response.error?.description ||
+              "Payment failed. Please try again."
+          );
         }
-      },
+      );
 
-      prefill: {
-        name: form.name,
-        contact: form.phone,
-      },
+      paymentObject.open();
 
-      theme: {
-        color: "#000000",
-      },
-    };
+    } catch (error) {
+      console.error("Checkout error:", error);
 
-    const paymentObject = new window.Razorpay(options);
+      alert(
+        error.message ||
+          "Something went wrong. Please try again."
+      );
+    }
+  };
 
-    paymentObject.open();
+  // ==============================
+  // Loading
+  // ==============================
 
-  } catch (error) {
-    console.error("Checkout error:", error);
-    alert(error.message || "Something went wrong.");
-  }
-};
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -170,6 +291,10 @@ if (!paymentResponse.ok) {
       </div>
     );
   }
+
+  // ==============================
+  // Empty Cart
+  // ==============================
 
   if (cart.length === 0) {
     return (
@@ -188,10 +313,15 @@ if (!paymentResponse.ok) {
     );
   }
 
+  // ==============================
+  // Checkout UI
+  // ==============================
+
   return (
     <div className="min-h-screen bg-[#f7f6f2]">
 
       {/* Navbar */}
+
       <nav className="border-b border-black/10">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
 
@@ -220,7 +350,9 @@ if (!paymentResponse.ok) {
 
         <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_400px]">
 
-          {/* Customer Information */}
+          {/* ==================================
+              Delivery Information
+          ================================== */}
 
           <form
             onSubmit={handlePlaceOrder}
@@ -230,6 +362,8 @@ if (!paymentResponse.ok) {
             <h2 className="text-xl font-semibold">
               Delivery Information
             </h2>
+
+            {/* Name + Phone */}
 
             <div className="mt-8 grid gap-5 md:grid-cols-2">
 
@@ -265,6 +399,8 @@ if (!paymentResponse.ok) {
 
             </div>
 
+            {/* Address */}
+
             <div className="mt-5">
 
               <label className="text-sm">
@@ -281,6 +417,8 @@ if (!paymentResponse.ok) {
               />
 
             </div>
+
+            {/* City / State / Pincode */}
 
             <div className="mt-5 grid gap-5 md:grid-cols-3">
 
@@ -331,16 +469,120 @@ if (!paymentResponse.ok) {
 
             </div>
 
+            {/* ==================================
+                PAYMENT METHOD
+            ================================== */}
+
+            <div className="mt-10">
+
+              <h2 className="text-xl font-semibold">
+                Payment Method
+              </h2>
+
+              <div className="mt-5 space-y-4">
+
+                {/* Razorpay */}
+
+                <label
+                  className={`flex cursor-pointer items-start gap-4 border p-5 transition ${
+                    paymentMethod === "Razorpay"
+                      ? "border-black"
+                      : "border-black/10"
+                  }`}
+                >
+
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="Razorpay"
+                    checked={
+                      paymentMethod === "Razorpay"
+                    }
+                    onChange={(e) =>
+                      setPaymentMethod(
+                        e.target.value
+                      )
+                    }
+                    className="mt-1"
+                  />
+
+                  <div>
+
+                    <p className="font-medium">
+                      Online Payment
+                    </p>
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      Pay securely using UPI, Card or
+                      Net Banking
+                    </p>
+
+                  </div>
+
+                </label>
+
+                {/* COD */}
+
+                <label
+                  className={`flex cursor-pointer items-start gap-4 border p-5 transition ${
+                    paymentMethod === "COD"
+                      ? "border-black"
+                      : "border-black/10"
+                  }`}
+                >
+
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="COD"
+                    checked={
+                      paymentMethod === "COD"
+                    }
+                    onChange={(e) =>
+                      setPaymentMethod(
+                        e.target.value
+                      )
+                    }
+                    className="mt-1"
+                  />
+
+                  <div>
+
+                    <p className="font-medium">
+                      Cash on Delivery
+                    </p>
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      Pay when your order is
+                      delivered
+                    </p>
+
+                  </div>
+
+                </label>
+
+              </div>
+
+            </div>
+
+            {/* ==================================
+                PLACE ORDER BUTTON
+            ================================== */}
+
             <button
               type="submit"
               className="mt-8 w-full bg-black py-4 text-sm uppercase tracking-wider text-white transition hover:bg-black/80"
             >
-              Continue to Payment
+              {paymentMethod === "COD"
+                ? "Place COD Order"
+                : "Continue to Payment"}
             </button>
 
           </form>
 
-          {/* Order Summary */}
+          {/* ==================================
+              ORDER SUMMARY
+          ================================== */}
 
           <div className="h-fit bg-white p-8">
 
@@ -351,17 +593,20 @@ if (!paymentResponse.ok) {
             <div className="mt-6 space-y-5">
 
               {cart.map((item) => (
+
                 <div
                   key={item.product._id}
                   className="flex gap-4"
                 >
 
                   <div className="h-20 w-20 shrink-0 bg-gray-50">
+
                     <img
                       src={item.product.images?.[0]}
                       alt={item.product.name}
                       className="h-full w-full object-contain p-2"
                     />
+
                   </div>
 
                   <div className="flex-1">
@@ -377,13 +622,15 @@ if (!paymentResponse.ok) {
                     <p className="mt-1">
                       ₹
                       {(
-                        item.product.price * item.quantity
+                        item.product.price *
+                        item.quantity
                       ).toLocaleString()}
                     </p>
 
                   </div>
 
                 </div>
+
               ))}
 
             </div>
@@ -392,7 +639,9 @@ if (!paymentResponse.ok) {
 
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span>₹{total.toLocaleString()}</span>
+                <span>
+                  ₹{total.toLocaleString()}
+                </span>
               </div>
 
               <div className="flex justify-between">
@@ -402,8 +651,26 @@ if (!paymentResponse.ok) {
 
               <div className="flex justify-between border-t border-black/10 pt-4 text-xl font-semibold">
                 <span>Total</span>
-                <span>₹{total.toLocaleString()}</span>
+                <span>
+                  ₹{total.toLocaleString()}
+                </span>
               </div>
+
+            </div>
+
+            {/* Selected Payment Method */}
+
+            <div className="mt-6 border-t border-black/10 pt-5">
+
+              <p className="text-xs uppercase tracking-wider text-gray-400">
+                Payment Method
+              </p>
+
+              <p className="mt-2 font-medium">
+                {paymentMethod === "COD"
+                  ? "Cash on Delivery"
+                  : "Online Payment"}
+              </p>
 
             </div>
 

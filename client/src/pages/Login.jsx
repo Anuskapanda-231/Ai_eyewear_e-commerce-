@@ -39,14 +39,21 @@ function Login() {
       }
 
       // Save JWT
-      localStorage.setItem("token", data.token);
+      // Save JWT
+localStorage.setItem("token", data.token);
 
-      // Save user information
-      localStorage.setItem("user", JSON.stringify(data.user));
+// Save user information
+localStorage.setItem("user", JSON.stringify(data.user));
 
-      console.log("Login successful:", data);
+console.log("Login successful:", data);
+console.log("User role:", data.user.role);
 
-      navigate("/");
+// Redirect based on role
+if (data.user.role === "admin") {
+  navigate("/admin");
+} else {
+  navigate("/");
+}
     } catch (error) {
       console.error("Login error:", error);
       setError("Something went wrong. Please try again.");

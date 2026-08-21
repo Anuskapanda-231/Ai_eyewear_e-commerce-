@@ -1,19 +1,19 @@
 const admin = (req, res, next) => {
-  try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied. Admin only.",
-      });
-    }
-
-    next();
-  } catch (error) {
-    res.status(500).json({
+  if (!req.user) {
+    return res.status(401).json({
       success: false,
-      message: error.message,
+      message: "Not authorized",
     });
   }
+
+  if (req.user.role !== "admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Admin access required",
+    });
+  }
+
+  next();
 };
 
 module.exports = admin;
